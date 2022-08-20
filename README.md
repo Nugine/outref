@@ -4,7 +4,7 @@
 [![Documentation]][docs.rs] 
 ![License]
 
-Write-only references and slices.
+A write-only reference.
 
 [crates.io]: https://crates.io/crates/outref
 [Latest Version]: https://img.shields.io/crates/v/outref.svg

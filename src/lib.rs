@@ -1,4 +1,4 @@
-//! Write-only references and slices.
+//! A write-only reference.
 #![deny(
     missing_docs,
     clippy::all,
@@ -12,7 +12,7 @@ use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
-/// A write-only reference of `T`.
+/// A write-only reference.
 pub struct OutRef<'a, T> {
     data: NonNull<T>,
     _marker: PhantomData<&'a mut MaybeUninit<T>>,

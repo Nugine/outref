@@ -2,9 +2,9 @@
 name = "outref"
 version = "0.1.0"
 edition = "2021"
-description = "Write-only references and slices"
+description = "A write-only reference"
 license = "MIT"
 repository = "https://github.com/Nugine/outref"
 keywords = ["write-only", "reference", "slice"]
 categories = ["no-std", "rust-patterns"]
-rust-version = "1.62.1"
+rust-version = "1.61"

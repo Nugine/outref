@@ -7,11 +7,11 @@
     clippy::missing_inline_in_public_items,
     clippy::must_use_candidate
 )]
-#![no_std]
+#![cfg_attr(not(test), no_std)]
 
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
-use core::ptr::NonNull;
+use core::ptr::{self, NonNull};
 
 /// A write-only reference.
 pub struct OutRef<'a, T: ?Sized> {
@@ -84,7 +84,7 @@ impl<'a, T> OutRef<'a, [T]> {
         let slice: *mut [T] = {
             let len = slice.len();
             let data = slice.as_mut_ptr().cast();
-            core::ptr::slice_from_raw_parts_mut(data, len)
+            ptr::slice_from_raw_parts_mut(data, len)
         };
         unsafe { Self::from_raw(slice) }
     }
@@ -108,5 +108,62 @@ impl<'a, T> OutRef<'a, [T]> {
     #[must_use]
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.data.as_ptr().cast()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::OutRef;
+
+    use core::{mem, ptr, slice};
+
+    fn fill<T: Copy>(mut buf: OutRef<'_, [T]>, val: T) -> &'_ mut [T] {
+        let len = buf.len();
+        let data = buf.as_mut_ptr();
+        unsafe {
+            if len > 0 {
+                if mem::size_of::<T>() == 1 {
+                    let val: u8 = mem::transmute_copy(&val);
+                    data.write_bytes(val, len)
+                } else {
+                    data.write(val);
+
+                    let mut n = 1;
+                    while n <= len / 2 {
+                        ptr::copy_nonoverlapping(data, data.add(n), n);
+                        n *= 2;
+                    }
+
+                    let count = len - n;
+                    if count > 0 {
+                        ptr::copy_nonoverlapping(data, data.add(n), count);
+                    }
+                }
+            }
+            slice::from_raw_parts_mut(data, len)
+        }
+    }
+
+    fn vec_uninit_part<T>(v: &mut Vec<T>) -> OutRef<'_, [T]> {
+        unsafe {
+            let cap = v.capacity();
+            let len = v.len();
+            let data = v.as_mut_ptr().add(len);
+            OutRef::from_raw(ptr::slice_from_raw_parts_mut(data, cap - len))
+        }
+    }
+
+    #[test]
+    fn fill_vec() {
+        for n in 0..128 {
+            let mut v: Vec<u32> = Vec::with_capacity(n);
+            let buf = vec_uninit_part(&mut v);
+            fill(buf, 0x12345678);
+            unsafe { v.set_len(n) };
+            for &x in &v {
+                assert_eq!(x, 0x12345678);
+            }
+            drop(v);
+        }
     }
 }

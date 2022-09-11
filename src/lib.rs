@@ -14,6 +14,7 @@ use core::mem::MaybeUninit;
 use core::ptr::{self, NonNull};
 
 /// A write-only reference.
+#[repr(transparent)]
 pub struct OutRef<'a, T: ?Sized> {
     data: NonNull<T>,
     _marker: PhantomData<&'a mut T>,
@@ -23,16 +24,6 @@ unsafe impl<T: Send> Send for OutRef<'_, T> {}
 unsafe impl<T: Sync> Sync for OutRef<'_, T> {}
 
 impl<'a, T: ?Sized> OutRef<'a, T> {
-    /// Forms an [`OutRef<'a, T>`](OutRef).
-    #[inline(always)]
-    #[must_use]
-    pub fn new(data: &'a mut T) -> Self {
-        Self {
-            data: NonNull::from(data),
-            _marker: PhantomData,
-        }
-    }
-
     /// Forms an [`OutRef<'a, T>`](OutRef)
     ///
     /// # Safety
@@ -50,11 +41,21 @@ impl<'a, T: ?Sized> OutRef<'a, T> {
 }
 
 impl<'a, T> OutRef<'a, T> {
+    /// Forms an [`OutRef<'a, T>`](OutRef).
+    #[inline(always)]
+    #[must_use]
+    pub fn from_mut(data: &'a mut T) -> Self
+    where
+        T: Copy,
+    {
+        unsafe { Self::from_raw(data) }
+    }
+
     /// Forms an [`OutRef<'a, T>`](OutRef) from an uninitialized value.
     #[inline(always)]
     #[must_use]
-    pub fn uninit(value: &'a mut MaybeUninit<T>) -> Self {
-        let data: *mut T = MaybeUninit::as_mut_ptr(value);
+    pub fn from_uninit(data: &'a mut MaybeUninit<T>) -> Self {
+        let data: *mut T = MaybeUninit::as_mut_ptr(data);
         unsafe { Self::from_raw(data.cast()) }
     }
 
@@ -64,23 +65,23 @@ impl<'a, T> OutRef<'a, T> {
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.data.as_ptr().cast()
     }
-
-    /// Sets the value of the [`OutRef<'a, T>`](OutRef).
-    #[inline(always)]
-    pub fn write(&mut self, val: T) -> &mut T {
-        let p = self.as_mut_ptr();
-        unsafe {
-            p.write(val);
-            &mut *p
-        }
-    }
 }
 
 impl<'a, T> OutRef<'a, [T]> {
+    /// Forms an [`OutRef<'a, [T]>`](OutRef).
+    #[inline(always)]
+    #[must_use]
+    pub fn from_slice(slice: &'a mut [T]) -> Self
+    where
+        T: Copy,
+    {
+        unsafe { Self::from_raw(slice) }
+    }
+
     /// Forms an [`OutRef<'a, [T]>`](OutRef) from an uninitialized slice.
     #[inline(always)]
     #[must_use]
-    pub fn uninit_slice(slice: &'a mut [MaybeUninit<T>]) -> Self {
+    pub fn from_uninit_slice(slice: &'a mut [MaybeUninit<T>]) -> Self {
         let slice: *mut [T] = {
             let len = slice.len();
             let data = slice.as_mut_ptr().cast();

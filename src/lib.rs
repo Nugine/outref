@@ -123,7 +123,9 @@ mod tests {
         let data = buf.as_mut_ptr();
         unsafe {
             if len > 0 {
-                if mem::size_of::<T>() == 1 {
+                if mem::size_of::<T>() == 0 {
+                    // do nothing
+                } else if mem::size_of::<T>() == 1 {
                     let val: u8 = mem::transmute_copy(&val);
                     data.write_bytes(val, len)
                 } else {
@@ -145,20 +147,11 @@ mod tests {
         }
     }
 
-    fn vec_uninit_part<T>(v: &mut Vec<T>) -> OutRef<'_, [T]> {
-        unsafe {
-            let cap = v.capacity();
-            let len = v.len();
-            let data = v.as_mut_ptr().add(len);
-            OutRef::from_raw(ptr::slice_from_raw_parts_mut(data, cap - len))
-        }
-    }
-
     #[test]
     fn fill_vec() {
         for n in 0..128 {
             let mut v: Vec<u32> = Vec::with_capacity(n);
-            let buf = vec_uninit_part(&mut v);
+            let buf = OutRef::from_uninit_slice(v.spare_capacity_mut());
             fill(buf, 0x12345678);
             unsafe { v.set_len(n) };
             for &x in &v {

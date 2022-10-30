@@ -4,7 +4,7 @@
 [![Documentation]][docs.rs] 
 ![License]
 
-A write-only reference.
+Out reference (`&'a out T`).
 
 [crates.io]: https://crates.io/crates/outref
 [Latest Version]: https://img.shields.io/crates/v/outref.svg

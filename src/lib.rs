@@ -1,4 +1,4 @@
-//! A write-only reference.
+//! Out reference ([`&'a out T`](Out)).
 #![deny(
     missing_docs,
     clippy::all,
@@ -13,18 +13,33 @@ use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use core::ptr::{self, NonNull};
 
-/// A write-only reference.
+/// Out reference ([`&'a out T`](Out)).
+///
+/// An out reference is similar to a mutable reference, but it may point to uninitialized memory.
+/// An out reference may be used to initialize the pointee or represent a data buffer.
+///
+/// [`&'a out T`](Out) can be converted from:
+/// + [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
+///     and [`&'a mut MaybeUninit<[T]>`](core::mem::MaybeUninit),
+///     where the `T` may be uninitialized.
+/// + [`&'a mut T`](reference) and [`&'a mut [T]`](slice),
+///     where the `T` is initialized and [Copy].
+///
+/// It is not allowed to corrupt or de-initialize the pointee, which may cause unsoundness.
+///
+/// Any reads through an out reference may read uninitialized value(s).
 #[repr(transparent)]
-pub struct OutRef<'a, T: ?Sized> {
+pub struct Out<'a, T: 'a + ?Sized> {
     data: NonNull<T>,
     _marker: PhantomData<&'a mut T>,
 }
 
-unsafe impl<T: Send> Send for OutRef<'_, T> {}
-unsafe impl<T: Sync> Sync for OutRef<'_, T> {}
+unsafe impl<T: Send> Send for Out<'_, T> {}
+unsafe impl<T: Sync> Sync for Out<'_, T> {}
+impl<T: Unpin> Unpin for Out<'_, T> {}
 
-impl<'a, T: ?Sized> OutRef<'a, T> {
-    /// Forms an [`OutRef<'a, T>`](OutRef)
+impl<'a, T: ?Sized> Out<'a, T> {
+    /// Forms an [`Out<'a, T>`](Out)
     ///
     /// # Safety
     ///
@@ -38,10 +53,33 @@ impl<'a, T: ?Sized> OutRef<'a, T> {
             _marker: PhantomData,
         }
     }
+
+    /// Converts to a mutable (unique) reference to the value.
+    ///
+    /// # Safety
+    /// The referenced value must be initialized when calling this function.
+    #[inline(always)]
+    #[must_use]
+    pub unsafe fn assume_init(mut self) -> &'a mut T {
+        self.data.as_mut()
+    }
+
+    /// Reborrows the out reference for a shorter lifetime.
+    #[inline(always)]
+    #[must_use]
+    pub fn reborrow<'s>(&'s mut self) -> Out<'s, T>
+    where
+        'a: 's,
+    {
+        Self {
+            data: self.data,
+            _marker: PhantomData,
+        }
+    }
 }
 
-impl<'a, T> OutRef<'a, T> {
-    /// Forms an [`OutRef<'a, T>`](OutRef).
+impl<'a, T> Out<'a, T> {
+    /// Forms an [`Out<'a, T>`](Out).
     #[inline(always)]
     #[must_use]
     pub fn from_mut(data: &'a mut T) -> Self
@@ -51,7 +89,7 @@ impl<'a, T> OutRef<'a, T> {
         unsafe { Self::from_raw(data) }
     }
 
-    /// Forms an [`OutRef<'a, T>`](OutRef) from an uninitialized value.
+    /// Forms an [`Out<'a, T>`](Out) from an uninitialized value.
     #[inline(always)]
     #[must_use]
     pub fn from_uninit(data: &'a mut MaybeUninit<T>) -> Self {
@@ -67,8 +105,8 @@ impl<'a, T> OutRef<'a, T> {
     }
 }
 
-impl<'a, T> OutRef<'a, [T]> {
-    /// Forms an [`OutRef<'a, [T]>`](OutRef).
+impl<'a, T> Out<'a, [T]> {
+    /// Forms an [`Out<'a, [T]>`](Out).
     #[inline(always)]
     #[must_use]
     pub fn from_slice(slice: &'a mut [T]) -> Self
@@ -78,7 +116,7 @@ impl<'a, T> OutRef<'a, [T]> {
         unsafe { Self::from_raw(slice) }
     }
 
-    /// Forms an [`OutRef<'a, [T]>`](OutRef) from an uninitialized slice.
+    /// Forms an [`Out<'a, [T]>`](Out) from an uninitialized slice.
     #[inline(always)]
     #[must_use]
     pub fn from_uninit_slice(slice: &'a mut [MaybeUninit<T>]) -> Self {
@@ -112,38 +150,93 @@ impl<'a, T> OutRef<'a, [T]> {
     }
 }
 
+/// Extension trait for converting a mutable reference to an out reference.
+///
+/// # Safety
+/// This trait can be trusted to be implemented correctly for all types.
+pub unsafe trait AsOut<T: ?Sized> {
+    /// Returns an out reference to self.
+    fn as_out(&mut self) -> Out<'_, T>;
+}
+
+unsafe impl<T> AsOut<T> for T
+where
+    T: Copy,
+{
+    #[inline(always)]
+    #[must_use]
+    fn as_out(&mut self) -> Out<'_, T> {
+        Out::from_mut(self)
+    }
+}
+
+unsafe impl<T> AsOut<T> for MaybeUninit<T> {
+    #[inline(always)]
+    #[must_use]
+    fn as_out(&mut self) -> Out<'_, T> {
+        Out::from_uninit(self)
+    }
+}
+
+unsafe impl<T> AsOut<[T]> for [T]
+where
+    T: Copy,
+{
+    #[inline(always)]
+    #[must_use]
+    fn as_out(&mut self) -> Out<'_, [T]> {
+        Out::from_slice(self)
+    }
+}
+
+unsafe impl<T> AsOut<[T]> for [MaybeUninit<T>] {
+    #[inline(always)]
+    #[must_use]
+    fn as_out(&mut self) -> Out<'_, [T]> {
+        Out::from_uninit_slice(self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::OutRef;
+    use super::*;
 
-    use core::{mem, ptr, slice};
+    use core::{mem, ptr};
 
-    fn fill<T: Copy>(mut buf: OutRef<'_, [T]>, val: T) -> &'_ mut [T] {
-        let len = buf.len();
-        let data = buf.as_mut_ptr();
-        unsafe {
-            if len > 0 {
-                if mem::size_of::<T>() == 0 {
-                    // do nothing
-                } else if mem::size_of::<T>() == 1 {
-                    let val: u8 = mem::transmute_copy(&val);
-                    data.write_bytes(val, len)
-                } else {
-                    data.write(val);
+    unsafe fn raw_fill_copied<T: Copy>(dst: *mut T, len: usize, val: T) {
+        if mem::size_of::<T>() == 0 {
+            return;
+        }
 
-                    let mut n = 1;
-                    while n <= len / 2 {
-                        ptr::copy_nonoverlapping(data, data.add(n), n);
-                        n *= 2;
-                    }
+        if len == 0 {
+            return;
+        }
 
-                    let count = len - n;
-                    if count > 0 {
-                        ptr::copy_nonoverlapping(data, data.add(n), count);
-                    }
-                }
+        if mem::size_of::<T>() == 1 {
+            let val: u8 = mem::transmute_copy(&val);
+            dst.write_bytes(val, len);
+        } else {
+            dst.write(val);
+
+            let mut n = 1;
+            while n <= len / 2 {
+                ptr::copy_nonoverlapping(dst, dst.add(n), n);
+                n *= 2;
             }
-            slice::from_raw_parts_mut(data, len)
+
+            let count = len - n;
+            if count > 0 {
+                ptr::copy_nonoverlapping(dst, dst.add(n), count);
+            }
+        }
+    }
+
+    fn fill<T: Copy>(mut buf: Out<'_, [T]>, val: T) -> &'_ mut [T] {
+        unsafe {
+            let len = buf.len();
+            let dst = buf.as_mut_ptr();
+            raw_fill_copied(dst, len, val);
+            buf.assume_init()
         }
     }
 
@@ -151,8 +244,7 @@ mod tests {
     fn fill_vec() {
         for n in 0..128 {
             let mut v: Vec<u32> = Vec::with_capacity(n);
-            let buf = OutRef::from_uninit_slice(v.spare_capacity_mut());
-            fill(buf, 0x12345678);
+            fill(v.spare_capacity_mut().as_out(), 0x12345678);
             unsafe { v.set_len(n) };
             for &x in &v {
                 assert_eq!(x, 0x12345678);

@@ -1,6 +1,6 @@
 [package]
 name = "outref"
-version = "0.4.0"
+version = "0.5.0-dev"
 edition = "2021"
 description = "Out reference"
 license = "MIT"

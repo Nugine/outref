@@ -47,7 +47,7 @@ impl<'a, T: ?Sized> Out<'a, T> {
     /// * `data` must be properly aligned.
     #[inline(always)]
     #[must_use]
-    pub unsafe fn from_raw(data: *mut T) -> Self {
+    pub unsafe fn new(data: *mut T) -> Self {
         Self {
             data: NonNull::new_unchecked(data),
             _marker: PhantomData,
@@ -86,7 +86,7 @@ impl<'a, T> Out<'a, T> {
     where
         T: Copy,
     {
-        unsafe { Self::from_raw(data) }
+        unsafe { Self::new(data) }
     }
 
     /// Forms an [`Out<'a, T>`](Out) from an uninitialized value.
@@ -94,7 +94,7 @@ impl<'a, T> Out<'a, T> {
     #[must_use]
     pub fn from_uninit(data: &'a mut MaybeUninit<T>) -> Self {
         let data: *mut T = MaybeUninit::as_mut_ptr(data);
-        unsafe { Self::from_raw(data.cast()) }
+        unsafe { Self::new(data.cast()) }
     }
 
     /// Returns an unsafe mutable pointer to the value.
@@ -113,7 +113,7 @@ impl<'a, T> Out<'a, [T]> {
     where
         T: Copy,
     {
-        unsafe { Self::from_raw(slice) }
+        unsafe { Self::new(slice) }
     }
 
     /// Forms an [`Out<'a, [T]>`](Out) from an uninitialized slice.
@@ -125,7 +125,7 @@ impl<'a, T> Out<'a, [T]> {
             let data = slice.as_mut_ptr().cast();
             ptr::slice_from_raw_parts_mut(data, len)
         };
-        unsafe { Self::from_raw(slice) }
+        unsafe { Self::new(slice) }
     }
 
     /// Returns true if the slice has a length of 0.

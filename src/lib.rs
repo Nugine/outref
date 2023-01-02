@@ -12,6 +12,7 @@
 use core::marker::PhantomData;
 use core::mem::MaybeUninit;
 use core::ptr::{self, NonNull};
+use core::slice;
 
 /// Out reference ([`&'a out T`](Out)).
 ///
@@ -20,12 +21,15 @@ use core::ptr::{self, NonNull};
 ///
 /// [`&'a out T`](Out) can be converted from:
 /// + [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
-///     and [`&'a mut MaybeUninit<[T]>`](core::mem::MaybeUninit),
+///     and [`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit),
 ///     where the `T` may be uninitialized.
-/// + [`&'a mut T`](reference) and [`&'a mut [T]`](slice),
+/// + [`&'a mut T`](reference) and [`&'a mut [T]`](prim@slice),
 ///     where the `T` is initialized and [Copy].
 ///
 /// It is not allowed to corrupt or de-initialize the pointee, which may cause unsoundness.
+/// It is the main difference between [`&'a out T`](Out)
+/// and [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
+/// /[`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit).
 ///
 /// Any reads through an out reference may read uninitialized value(s).
 #[repr(transparent)]
@@ -97,6 +101,15 @@ impl<'a, T> Out<'a, T> {
         unsafe { Self::new(data.cast()) }
     }
 
+    /// Converts to [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
+    /// # Safety
+    /// It is not allowed to corrupt or de-initialize the pointee.
+    #[inline(always)]
+    #[must_use]
+    pub unsafe fn into_uninit(self) -> &'a mut MaybeUninit<T> {
+        &mut *self.data.as_ptr().cast()
+    }
+
     /// Returns an unsafe mutable pointer to the value.
     #[inline(always)]
     #[must_use]
@@ -126,6 +139,17 @@ impl<'a, T> Out<'a, [T]> {
             ptr::slice_from_raw_parts_mut(data, len)
         };
         unsafe { Self::new(slice) }
+    }
+
+    /// Converts to [`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit)
+    /// # Safety
+    /// It is not allowed to corrupt or de-initialize the pointee.
+    #[inline(always)]
+    #[must_use]
+    pub unsafe fn into_uninit_slice(self) -> &'a mut [MaybeUninit<T>] {
+        let len = self.len();
+        let data = self.data.as_ptr().cast();
+        unsafe { slice::from_raw_parts_mut(data, len) }
     }
 
     /// Returns true if the slice has a length of 0.

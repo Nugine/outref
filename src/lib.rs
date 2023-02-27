@@ -31,7 +31,39 @@ use core::slice;
 /// and [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
 /// /[`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit).
 ///
-/// Any reads through an out reference may read uninitialized value(s).
+/// Any reads through an out reference may read uninitialized value(s) and cause undefined behavior.
+///
+/// [`AsOut`] provides a shortcut for converting a mutable reference to an out reference.
+///
+/// # Examples
+///
+/// ```rust
+/// use core::ptr;
+/// use core::slice;
+/// use core::mem::MaybeUninit;
+///
+/// use outref::AsOut;
+/// use outref::Out;
+///
+/// fn copy<'d, T: Copy>(src: &[T], mut dst: Out<'d, [T]>) -> &'d mut [T] {
+///     assert_eq!(src.len(), dst.len());
+///     unsafe {
+///         let count = src.len();
+///         let src = src.as_ptr();
+///         let dst = dst.as_mut_ptr();
+///         ptr::copy_nonoverlapping(src, dst, count);
+///         slice::from_raw_parts_mut(dst, count)
+///     }
+/// }
+///
+/// fn copy_init<'d, T: Copy>(src: &[T], dst: &'d mut [T]) -> &'d mut [T] {
+///     copy(src, dst.as_out())
+/// }
+///
+/// fn copy_uninit<'d, T: Copy>(src: &[T], dst: &'d mut [MaybeUninit<T>]) -> &'d mut [T] {
+///     copy(src, dst.as_out())
+/// }
+/// ```
 #[repr(transparent)]
 pub struct Out<'a, T: 'a + ?Sized> {
     data: NonNull<T>,

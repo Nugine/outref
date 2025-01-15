@@ -2,6 +2,7 @@ dev:
     just fmt
     just lint
     just test
+    just miri
 
 fmt *ARGS:
     cargo fmt --all {{ARGS}}
@@ -11,6 +12,8 @@ lint *ARGS:
 
 test *ARGS:
     cargo test --all-features {{ARGS}}
+
+miri *ARGS:
     cargo +nightly miri test --all-features {{ARGS}}
 
 doc *ARGS:
@@ -20,3 +23,4 @@ ci:
     just fmt --check
     just lint -- -D warnings
     just test
+    just miri

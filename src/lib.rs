@@ -181,7 +181,7 @@ impl<'a, T> Out<'a, [T]> {
     pub unsafe fn into_uninit_slice(self) -> &'a mut [MaybeUninit<T>] {
         let len = self.len();
         let data = self.data.as_ptr().cast();
-        unsafe { slice::from_raw_parts_mut(data, len) }
+        slice::from_raw_parts_mut(data, len)
     }
 
     /// Returns true if the slice has a length of 0.

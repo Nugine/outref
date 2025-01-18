@@ -21,7 +21,7 @@ jobs:
       - uses: taiki-e/install-action@just
       - uses: dtolnay/rust-toolchain@nightly
         with:
-          components: rustfmt, clippy, miri
+          components: rustfmt, clippy, miri, rust-src
       - uses: Swatinem/rust-cache@v2
       - run: just ci
 

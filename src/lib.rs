@@ -21,10 +21,10 @@ use core::slice;
 ///
 /// [`&'a out T`](Out) can be converted from:
 /// + [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
-///     and [`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit),
-///     where the `T` may be uninitialized.
+///   and [`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit),
+///   where the `T` may be uninitialized.
 /// + [`&'a mut T`](reference) and [`&'a mut [T]`](prim@slice),
-///     where the `T` is initialized and [Copy].
+///   where the `T` is initialized and [Copy].
 ///
 /// It is not allowed to corrupt or de-initialize the pointee, which may cause unsoundness.
 /// It is the main difference between [`&'a out T`](Out)

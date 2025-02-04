@@ -17,4 +17,3 @@ Documentation: <https://docs.rs/outref>
 ## Contributing
 
 + [Development Guide](./CONTRIBUTING.md)
-+ [Code of Conduct](./CODE_OF_CONDUCT.md)

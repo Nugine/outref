@@ -212,6 +212,7 @@ impl<'a, T> Out<'a, [T]> {
 /// This trait can be trusted to be implemented correctly for all types.
 pub unsafe trait AsOut<T: ?Sized> {
     /// Returns an out reference to self.
+    #[must_use]
     fn as_out(&mut self) -> Out<'_, T>;
 }
 
@@ -220,7 +221,6 @@ where
     T: Copy,
 {
     #[inline(always)]
-    #[must_use]
     fn as_out(&mut self) -> Out<'_, T> {
         Out::from_mut(self)
     }
@@ -228,7 +228,6 @@ where
 
 unsafe impl<T> AsOut<T> for MaybeUninit<T> {
     #[inline(always)]
-    #[must_use]
     fn as_out(&mut self) -> Out<'_, T> {
         Out::from_uninit(self)
     }
@@ -239,7 +238,6 @@ where
     T: Copy,
 {
     #[inline(always)]
-    #[must_use]
     fn as_out(&mut self) -> Out<'_, [T]> {
         Out::from_slice(self)
     }
@@ -247,7 +245,6 @@ where
 
 unsafe impl<T> AsOut<[T]> for [MaybeUninit<T>] {
     #[inline(always)]
-    #[must_use]
     fn as_out(&mut self) -> Out<'_, [T]> {
         Out::from_uninit_slice(self)
     }

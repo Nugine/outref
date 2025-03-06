@@ -54,13 +54,12 @@
 //! }
 //! ```
 #![deny(
-    missing_docs,
+    missing_docs, //
     clippy::all,
     clippy::cargo,
-    clippy::missing_const_for_fn,
-    clippy::missing_inline_in_public_items,
-    clippy::must_use_candidate
+    clippy::pedantic,
 )]
+#![allow(clippy::inline_always)]
 #![cfg_attr(not(test), no_std)]
 
 use core::marker::PhantomData;
@@ -304,10 +303,10 @@ mod tests {
     fn fill_vec() {
         for n in 0..128 {
             let mut v: Vec<u32> = Vec::with_capacity(n);
-            fill(v.spare_capacity_mut().as_out(), 0x12345678);
+            fill(v.spare_capacity_mut().as_out(), 0x1234_5678);
             unsafe { v.set_len(n) };
             for &x in &v {
-                assert_eq!(x, 0x12345678);
+                assert_eq!(x, 0x1234_5678);
             }
             drop(v);
         }

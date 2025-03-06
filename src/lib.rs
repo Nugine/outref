@@ -8,14 +8,11 @@
 //!   and [`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit),
 //!   where the `T` may be uninitialized.
 //! + [`&'a mut T`](reference) and [`&'a mut [T]`](prim@slice),
-//!   where the `T` is initialized and [Copy].
-//!
-//! For the second case, the [`Copy`] bound is not really necessary
-//! but it prevents accidentally overwriting a value without executing the destructor.
-//! If the `T` is not [`Copy`], it is recommended to construct [`&'a out T`](Out) from raw pointer.
+//!   where the `T` is initialized.
 //!
 //! It is not allowed to corrupt or de-initialize the pointee, which may cause unsoundness.
-//! It is the main difference between [`&'a out T`](Out)
+//! You can safely pass an out reference to a function and assume that the pointee remains valid.
+//! This is the main difference between [`&'a out T`](Out)
 //! and [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
 //! /[`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit).
 //!
@@ -124,10 +121,7 @@ impl<'a, T> Out<'a, T> {
     /// Forms an [`Out<'a, T>`](Out).
     #[inline(always)]
     #[must_use]
-    pub fn from_mut(data: &'a mut T) -> Self
-    where
-        T: Copy,
-    {
+    pub fn from_mut(data: &'a mut T) -> Self {
         unsafe { Self::new(data) }
     }
 
@@ -155,10 +149,12 @@ impl<'a, T> Out<'a, T> {
         self.data.as_ptr().cast()
     }
 
-    /// Writes a value to the pointee and returns a mutable reference to it.
+    /// Overwrites a value to the pointee and returns a mutable reference to it.
+    ///
+    /// If the pointee is initialized before, it will be overwritten without executing the destructor.
     #[inline(always)]
     #[must_use]
-    pub fn write(&mut self, value: T) -> &mut T {
+    pub fn overwrite(&mut self, value: T) -> &mut T {
         let ptr = self.as_mut_ptr();
         unsafe {
             ptr.write(value);
@@ -171,10 +167,7 @@ impl<'a, T> Out<'a, [T]> {
     /// Forms an [`Out<'a, [T]>`](Out).
     #[inline(always)]
     #[must_use]
-    pub fn from_slice(slice: &'a mut [T]) -> Self
-    where
-        T: Copy,
-    {
+    pub fn from_slice(slice: &'a mut [T]) -> Self {
         unsafe { Self::new(slice) }
     }
 
@@ -239,6 +232,23 @@ impl<'a, T> Out<'a, [T]> {
             slice::from_raw_parts_mut(ptr, len)
         }
     }
+
+    /// Copies all elements from `src` into `self`, using a memcpy.
+    ///
+    /// # Panics
+    /// This function will panic if the two slices have different lengths.
+    pub fn copy_from_slice(&mut self, src: &[T])
+    where
+        T: Copy,
+    {
+        assert_eq!(self.len(), src.len());
+        let len = src.len();
+        let src = src.as_ptr();
+        let dst = self.as_mut_ptr();
+        unsafe {
+            ptr::copy_nonoverlapping(src, dst, len);
+        }
+    }
 }
 
 /// Extension trait for converting a mutable reference to an out reference.
@@ -251,10 +261,7 @@ pub unsafe trait AsOut<T: ?Sized> {
     fn as_out(&mut self) -> Out<'_, T>;
 }
 
-unsafe impl<T> AsOut<T> for T
-where
-    T: Copy,
-{
+unsafe impl<T> AsOut<T> for T {
     #[inline(always)]
     fn as_out(&mut self) -> Out<'_, T> {
         Out::from_mut(self)
@@ -268,10 +275,7 @@ unsafe impl<T> AsOut<T> for MaybeUninit<T> {
     }
 }
 
-unsafe impl<T> AsOut<[T]> for [T]
-where
-    T: Copy,
-{
+unsafe impl<T> AsOut<[T]> for [T] {
     #[inline(always)]
     fn as_out(&mut self) -> Out<'_, [T]> {
         Out::from_slice(self)

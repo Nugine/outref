@@ -1,4 +1,58 @@
 //! Out reference ([`&'a out T`](Out)).
+//!
+//! An out reference is similar to a mutable reference, but it may point to uninitialized memory.
+//! An out reference may be used to initialize the pointee or represent a data buffer.
+//!
+//! [`&'a out T`](Out) can be converted from:
+//! + [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
+//!   and [`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit),
+//!   where the `T` may be uninitialized.
+//! + [`&'a mut T`](reference) and [`&'a mut [T]`](prim@slice),
+//!   where the `T` is initialized and [Copy].
+//!
+//! For the second case, the [`Copy`] bound is not really necessary
+//! but it prevents accidentally overwriting a value without executing the destructor.
+//! If the `T` is not [`Copy`], it is recommended to construct [`&'a out T`](Out) from raw pointer.
+//!
+//! It is not allowed to corrupt or de-initialize the pointee, which may cause unsoundness.
+//! It is the main difference between [`&'a out T`](Out)
+//! and [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
+//! /[`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit).
+//!
+//! Any reads through an out reference may read uninitialized value(s) and cause undefined behavior,
+//! unless the pointee is initialized before.
+//!
+//! [`AsOut`] provides a shortcut for converting a mutable reference to an out reference.
+//!
+//! # Examples
+//!
+//! ```rust
+//! use core::ptr;
+//! use core::slice;
+//! use core::mem::MaybeUninit;
+//!
+//! use outref::AsOut;
+//! use outref::Out;
+//!
+//! fn copy<'d, T: Copy>(src: &[T], mut dst: Out<'d, [T]>) -> &'d mut [T] {
+//!     assert_eq!(src.len(), dst.len());
+//!     unsafe {
+//!         let count = src.len();
+//!         let src = src.as_ptr();
+//!         let dst = dst.as_mut_ptr();
+//!         ptr::copy_nonoverlapping(src, dst, count);
+//!         slice::from_raw_parts_mut(dst, count)
+//!     }
+//! }
+//!
+//! fn copy_init<'d, T: Copy>(src: &[T], dst: &'d mut [T]) -> &'d mut [T] {
+//!     copy(src, dst.as_out())
+//! }
+//!
+//! fn copy_uninit<'d, T: Copy>(src: &[T], dst: &'d mut [MaybeUninit<T>]) -> &'d mut [T] {
+//!     copy(src, dst.as_out())
+//! }
+//! ```
 #![deny(
     missing_docs,
     clippy::all,
@@ -16,54 +70,7 @@ use core::slice;
 
 /// Out reference ([`&'a out T`](Out)).
 ///
-/// An out reference is similar to a mutable reference, but it may point to uninitialized memory.
-/// An out reference may be used to initialize the pointee or represent a data buffer.
-///
-/// [`&'a out T`](Out) can be converted from:
-/// + [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
-///   and [`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit),
-///   where the `T` may be uninitialized.
-/// + [`&'a mut T`](reference) and [`&'a mut [T]`](prim@slice),
-///   where the `T` is initialized and [Copy].
-///
-/// It is not allowed to corrupt or de-initialize the pointee, which may cause unsoundness.
-/// It is the main difference between [`&'a out T`](Out)
-/// and [`&'a mut MaybeUninit<T>`](core::mem::MaybeUninit)
-/// /[`&'a mut [MaybeUninit<T>]`](core::mem::MaybeUninit).
-///
-/// Any reads through an out reference may read uninitialized value(s) and cause undefined behavior.
-///
-/// [`AsOut`] provides a shortcut for converting a mutable reference to an out reference.
-///
-/// # Examples
-///
-/// ```rust
-/// use core::ptr;
-/// use core::slice;
-/// use core::mem::MaybeUninit;
-///
-/// use outref::AsOut;
-/// use outref::Out;
-///
-/// fn copy<'d, T: Copy>(src: &[T], mut dst: Out<'d, [T]>) -> &'d mut [T] {
-///     assert_eq!(src.len(), dst.len());
-///     unsafe {
-///         let count = src.len();
-///         let src = src.as_ptr();
-///         let dst = dst.as_mut_ptr();
-///         ptr::copy_nonoverlapping(src, dst, count);
-///         slice::from_raw_parts_mut(dst, count)
-///     }
-/// }
-///
-/// fn copy_init<'d, T: Copy>(src: &[T], dst: &'d mut [T]) -> &'d mut [T] {
-///     copy(src, dst.as_out())
-/// }
-///
-/// fn copy_uninit<'d, T: Copy>(src: &[T], dst: &'d mut [MaybeUninit<T>]) -> &'d mut [T] {
-///     copy(src, dst.as_out())
-/// }
-/// ```
+/// See the [crate-level documentation](crate) for more.
 #[repr(transparent)]
 pub struct Out<'a, T: 'a + ?Sized> {
     data: NonNull<T>,

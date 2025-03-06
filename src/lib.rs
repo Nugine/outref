@@ -154,6 +154,17 @@ impl<'a, T> Out<'a, T> {
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.data.as_ptr().cast()
     }
+
+    /// Writes a value to the pointee and returns a mutable reference to it.
+    #[inline(always)]
+    #[must_use]
+    pub fn write(&mut self, value: T) -> &mut T {
+        let ptr = self.as_mut_ptr();
+        unsafe {
+            ptr.write(value);
+            &mut *ptr
+        }
+    }
 }
 
 impl<'a, T> Out<'a, [T]> {
@@ -209,6 +220,24 @@ impl<'a, T> Out<'a, [T]> {
     #[must_use]
     pub fn as_mut_ptr(&mut self) -> *mut T {
         self.data.as_ptr().cast()
+    }
+
+    /// Fills the slice with the same value
+    /// and returns a mutable reference to the slice.
+    #[inline(always)]
+    #[must_use]
+    pub fn fill_copied(&mut self, val: T) -> &mut [T]
+    where
+        T: Copy,
+    {
+        let ptr = self.as_mut_ptr();
+        let len = self.len();
+        unsafe {
+            for i in 0..len {
+                ptr.add(i).write(val);
+            }
+            slice::from_raw_parts_mut(ptr, len)
+        }
     }
 }
 

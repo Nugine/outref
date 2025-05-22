@@ -8,3 +8,4 @@ repository = "https://github.com/Nugine/outref"
 keywords = ["write-only", "reference", "slice"]
 categories = ["no-std", "rust-patterns"]
 rust-version = "1.63.0"
+exclude = ["/.github/", "/justfile"]
